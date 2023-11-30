@@ -1,91 +1,85 @@
 
-from .. import loader, utils
-import asyncio
+from telethon import events, sync
+from telethon.tl.functions.messages import ImportChatInviteRequest
 import random
-import json
+import asyncio
 
-class VampModule(loader.Module):
-    """Vamp Userbot Module"""
-    strings = {"name": "VampModule"}
+# Инициализация глобальных переменных
+vamp_templates = []  # Список шаблонов для команды vamp
+current_template = 0  # Текущий выбранный шаблон
 
-    async def client_ready(self, client, db):
-        self.db = db
-        self.client = client
-        self.vamp_templates = db.get("VampModule", "templates", [])
+# Команда .id - Получение ID чата
+@client.on(events.NewMessage(pattern=r'\.id', outgoing=True))
+async def send_chat_id(event):
+    await event.reply(f"Chat ID: {event.chat_id}")
 
-    async def idcmd(self, message):
-        """Получить ID текущего чата."""
-        await utils.answer(message, f"ID этого чата: {message.chat_id}")
+# Команда .vamp - Отправка рандомных сообщений
+@client.on(events.NewMessage(pattern=r'\.vamp (\d+) (\d+) (.+)', outgoing=True))
+async def vamp_command(event):
+    chat_id, timing, header = event.pattern_match.groups()
+    timing = int(timing)
+    while True:
+        message = header + "
+" + random.choice(vamp_templates[current_template])
+        await client.send_message(int(chat_id), message)
+        await asyncio.sleep(timing)
 
-    async def vampcmd(self, message):
-        """Активирует режим вампира."""
-        args = utils.get_args_raw(message)
-        if not args:
-            await utils.answer(message, "Неверные аргументы.")
-            return
-        try:
-            chat_id, timing, header = args.split(maxsplit=2)
-            timing = int(timing) * 60
-        except ValueError:
-            await utils.answer(message, "Ошибка в аргументах.")
-            return
+# Команда .vampshb - Вывод шаблонов и выбор шаблона
+@client.on(events.NewMessage(pattern=r'\.vampshb( \d+)?', outgoing=True))
+async def vampshb_command(event):
+    global current_template
+    num = event.pattern_match.group(1)
+    if num:
+        current_template = int(num.strip()) - 1
+        await event.reply(f"Шаблон номер {current_template + 1} выбран.")
+    else:
+        templates_list = "
+".join([f"{i+1}. {tpl}" for i, tpl in enumerate(vamp_templates)])
+        await event.reply(f"Шаблоны:
+{templates_list}")
 
-        while True:
-            message = random.choice(self.vamp_templates)
-            await self.client.send_message(chat_id, f"{header}\n\n{message}")
-            await asyncio.sleep(timing)
-
-    async def vampshbcmd(self, message):
-        """Показать список доступных шаблонов или установить шаблон."""
-        args = utils.get_args_raw(message)
-        if args:
-            try:
-                selected_index = int(args) - 1
-                if 0 <= selected_index < len(self.vamp_templates):
-                    await utils.answer(message, f"Шаблон {selected_index + 1} выбран.")
-                else:
-                    await utils.answer(message, "Неверный номер шаблона.")
-            except ValueError:
-                await utils.answer(message, "Неверный формат номера шаблона.")
+# Команда .vaddshab - Добавление шаблона
+@client.on(events.NewMessage(pattern=r'\.vaddshab', outgoing=True))
+async def vaddshab_command(event):
+    if event.reply_to_msg_id:
+        reply_msg = await event.get_reply_message()
+        if reply_msg.file:
+            content = await reply_msg.download_media(bytes)
+            vamp_templates.append(content.decode('utf-8').split('
+'))
+            await event.reply("Шаблон добавлен.")
         else:
-            response = "\n".join(f"{i+1}. {template}" for i, template in enumerate(self.vamp_templates))
-            await utils.answer(message, response or "Список шаблонов пуст.")
+            await event.reply("Ответьте на текстовый файл.")
+    else:
+        await event.reply("Используйте команду в ответ на текстовый файл.")
 
-    async def vaddshabcmd(self, message):
-        """Добавить новые шаблоны."""
-        reply = await message.get_reply_message()
-        if reply and reply.file and reply.file.mime_type == 'text/plain':
-            try:
-                content = await reply.download_media(bytes)
-                new_templates = content.decode('utf-8').split('\n')
-                self.vamp_templates.extend(new_templates)
-                self.db.set("VampModule", "templates", self.vamp_templates)
-                await utils.answer(message, "Шаблоны добавлены.")
-            except Exception as e:
-                await utils.answer(message, f"Ошибка при добавлении шаблонов: {e}")
+# Команда .vamphelp - Вывод помощи по модулю
+@client.on(events.NewMessage(pattern=r'\.vamphelp', outgoing=True))
+async def vamphelp_command(event):
+    help_message = "Тут будет красивый гид по командам модуля."
+    await event.reply(help_message, file='path_to_premium_sticker')
 
-    async def vamphelpcmd(self, message):
-        """Показать справку по модулю."""
-        help_text = """
-<b>Vamp Userbot Help Guide</b>
-<i>Here's what I can do:</i>
+# Команда .vphoto - Изменение фото в гиде
+@client.on(events.NewMessage(pattern=r'\.vphoto', outgoing=True))
+async def vphoto_command(event):
+    if event.reply_to_msg_id:
+        reply_msg = await event.get_reply_message()
+        if reply_msg.photo:
+            # Логика изменения фото в гиде
+            pass
+        else:
+            await event.reply("Ответьте на сообщение с фото.")
+    else:
+        await event.reply("Используйте команду в ответ на сообщение с фото.")
 
-<b>.id</b>
-- Получить ID текущего чата.
+# Автоподписка на канал разработчика при установке модуля
+@client.on(events.NewMessage(pattern=r'\.start', outgoing=True))
+async def start_command(event):
+    try:
+        await client(ImportChatInviteRequest('bzrkrshop'))
+        await event.reply("Вы подписались на канал разработчика.")
+    except Exception as e:
+        await event.reply(str(e))
 
-<b>.vamp [chat_id] [timing] [header]</b>
-- Активирует режим вампира...
+# Здесь может быть дополнительный код для управления модулем, обработки исключений и т.д.
 
-<b>.vampshb [номер]</b>
-- Показать список доступных шаблонов...
-
-<b>.vaddshab</b>
-- Добавить новые шаблоны...
-
-<i>Разработчик:</i> @vampUB
-<i>Поддержите разработку, подписавшись на канал:</i> https://t.me/bzrkrshop
-"""
-        await utils.answer(message, help_text)
-
-def register(cb):
-    cb(VampModule())
