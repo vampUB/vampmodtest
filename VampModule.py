@@ -86,3 +86,6 @@ class VampModule(loader.Module):
 <i>Поддержите разработку, подписавшись на канал:</i> https://t.me/bzrkrshop
 """
         await utils.answer(message, help_text)
+
+def register(cb):
+    cb(VampModule())
