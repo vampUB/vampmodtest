@@ -4,9 +4,6 @@ import asyncio
 import random
 import json
 
-def register(cb):
-    cb(VampModule())
-
 class VampModule(loader.Module):
     """Vamp Userbot Module"""
     strings = {"name": "VampModule"}
@@ -89,3 +86,6 @@ class VampModule(loader.Module):
 <i>Поддержите разработку, подписавшись на канал:</i> https://t.me/bzrkrshop
 """
         await utils.answer(message, help_text)
+
+def register(cb):
+    cb(VampModule())
